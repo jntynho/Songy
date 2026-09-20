@@ -10,9 +10,19 @@ class StreamProvider {
 
   static Future<StreamProvider> fetch(String videoId) async {
     final yt = YoutubeExplode();
-    
+
     try {
-      final res = await yt.videos.streamsClient.getManifest(videoId);
+      // Try several YouTube clients: when one gets blocked/changed by YouTube,
+      // the next ones are used as fallback.
+      final res = await yt.videos.streamsClient.getManifest(
+        videoId,
+        ytClients: [
+          YoutubeApiClient.androidVr,
+          YoutubeApiClient.ios,
+          YoutubeApiClient.tv,
+          YoutubeApiClient.safari,
+        ],
+      );
       final audio = res.audioOnly;
       return StreamProvider(
           playable: true,
@@ -23,12 +33,14 @@ class StreamProvider {
                   audioCodec:
                       e.audioCodec.contains('mp') ? Codec.mp4a : Codec.opus,
                   bitrate: e.bitrate.bitsPerSecond,
-                  duration: e.duration ?? 0,
-                  loudnessDb: e.loudnessDb,
+                  duration: _safeDuration(e),
+                  loudnessDb: _safeLoudness(e),
                   url: e.url.toString(),
                   size: e.size.totalBytes))
               .toList());
     } catch (e) {
+      // ignore: avoid_print
+      print('StreamProvider.fetch error for $videoId: $e');
       if (e is SocketException) {
         return StreamProvider(
           playable: false,
@@ -60,6 +72,26 @@ class StreamProvider {
           statusMSG: "Unknown error occurred",
         );
       }
+    } finally {
+      yt.close();
+    }
+  }
+
+  // The stream info fields below may not exist in every version of
+  // youtube_explode_dart, so they are read safely.
+  static int _safeDuration(dynamic e) {
+    try {
+      return (e.duration as num?)?.toInt() ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static double _safeLoudness(dynamic e) {
+    try {
+      return (e.loudnessDb as num?)?.toDouble() ?? 0.0;
+    } catch (_) {
+      return 0.0;
     }
   }
 
