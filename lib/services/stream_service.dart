@@ -49,7 +49,7 @@ class StreamProvider {
       } else if (e is VideoUnplayableException) {
         return StreamProvider(
           playable: false,
-          statusMSG: e.reason ?? "Song is unplayable",
+          statusMSG: e.message,
         );
       } else if (e is VideoRequiresPurchaseException) {
         return StreamProvider(
